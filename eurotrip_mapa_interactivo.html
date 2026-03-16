@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🌍 Eurotrip — Mapa Interactivo de Transporte</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #ffffff;
+      --bg2: #f5f4f0;
+      --bg3: #eeedea;
+      --text: #1a1a18;
+      --text2: #6b6b66;
+      --text3: #9b9b96;
+      --border: rgba(0,0,0,0.12);
+      --border2: rgba(0,0,0,0.22);
+      --blue: #378ADD;
+      --blue-bg: #E6F1FB;
+      --blue-text: #0C447C;
+      --green: #0F6E56;
+      --green-bg: #E1F5EE;
+      --green-text: #085041;
+      --amber: #BA7517;
+      --amber-bg: #FAEEDA;
+      --amber-text: #633806;
+      --red: #E24B4A;
+      --red-bg: #FCEBEB;
+      --red-text: #791F1F;
+      --purple: #534AB7;
+      --purple-bg: #EEEDFE;
+      --purple-text: #26215C;
+      --teal: #1D9E75;
+      --teal-bg: #E1F5EE;
+      --radius: 8px;
+      --radius-lg: 12px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1a1a18;
+        --bg2: #242422;
+        --bg3: #2e2e2b;
+        --text: #e8e6de;
+        --text2: #a8a69e;
+        --text3: #6b6966;
+        --border: rgba(255,255,255,0.1);
+        --border2: rgba(255,255,255,0.2);
+        --blue-bg: #042C53;
+        --blue-text: #B5D4F4;
+        --green-bg: #04342C;
+        --green-text: #9FE1CB;
+        --amber-bg: #412402;
+        --amber-text: #FAC775;
+        --red-bg: #501313;
+        --red-text: #F7C1C1;
+        --purple-bg: #26215C;
+        --purple-text: #CECBF6;
+        --teal-bg: #04342C;
+      }
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px 16px;
+    }
+
+    .container { max-width: 920px; margin: 0 auto; }
+
+    header { margin-bottom: 24px; }
+    header h1 { font-size: 22px; font-weight: 500; margin-bottom: 4px; }
+    header p { font-size: 14px; color: var(--text2); }
+
+    .layout { display: grid; grid-template-columns: 1fr 340px; gap: 20px; align-items: start; }
+    @media (max-width: 720px) { .layout { grid-template-columns: 1fr; } }
+
+    /* MAP */
+    .map-wrap {
+      background: var(--bg2);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+    }
+
+    .filter-bar {
+      display: flex; gap: 6px; flex-wrap: wrap;
+      align-items: center; margin-bottom: 12px;
+    }
+    .filter-bar span { font-size: 12px; color: var(--text2); margin-right: 2px; }
+    .filter-btn {
+      background: var(--bg);
+      border: 0.5px solid var(--border2);
+      border-radius: 20px;
+      padding: 4px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      color: var(--text);
+      transition: background 0.15s, border-color 0.15s;
+      font-family: inherit;
+    }
+    .filter-btn:hover { background: var(--bg3); }
+    .filter-btn.active { background: var(--blue-bg); color: var(--blue-text); border-color: var(--blue); }
+
+    svg#map { width: 100%; height: auto; display: block; }
+    .city-dot { cursor: pointer; transition: r 0.15s; }
+    .city-dot:hover { r: 10; }
+    .city-label { font-size: 10.5px; font-family: inherit; fill: var(--text); pointer-events: none; }
+    .city-label-bg { fill: var(--bg2); opacity: 0.9; pointer-events: none; }
+    .route-tren { stroke: var(--blue); stroke-width: 2; fill: none; stroke-linecap: round; opacity: 0.7; }
+    .route-regional { stroke: var(--teal); stroke-width: 1.8; fill: none; stroke-linecap: round; stroke-dasharray: 6 3; opacity: 0.7; }
+
+    /* LEGEND */
+    .legend {
+      display: flex; gap: 14px; flex-wrap: wrap;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 0.5px solid var(--border);
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text2); }
+    .legend-line { width: 24px; height: 2px; border-radius: 1px; }
+    .legend-line.solid { background: var(--blue); }
+    .legend-line.dashed { background: none; border-top: 2px dashed var(--teal); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--red); border: 2px solid var(--bg2); }
+
+    /* SIDEBAR */
+    .sidebar { display: flex; flex-direction: column; gap: 14px; }
+
+    .info-card {
+      background: var(--bg);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 14px 16px;
+      min-height: 80px;
+    }
+    .info-card .placeholder { color: var(--text3); font-size: 13px; line-height: 1.5; }
+    .info-city-name { font-size: 15px; font-weight: 500; margin-bottom: 2px; }
+    .info-city-desc { font-size: 12px; color: var(--text2); margin-bottom: 10px; line-height: 1.5; }
+
+    .conn-list { display: flex; flex-direction: column; gap: 6px; }
+    .conn-item {
+      background: var(--bg2);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 10px;
+      font-size: 12px;
+    }
+    .conn-dest { font-weight: 500; color: var(--text); margin-bottom: 2px; }
+    .conn-meta { color: var(--text2); display: flex; gap: 8px; flex-wrap: wrap; }
+    .conn-price { color: var(--blue-text); font-weight: 500; }
+
+    /* PASSES TABLE */
+    .passes-card {
+      background: var(--bg);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 14px 16px;
+    }
+    .passes-card h3 { font-size: 13px; font-weight: 500; margin-bottom: 10px; }
+
+    .pass-item {
+      display: flex; justify-content: space-between; align-items: start;
+      padding: 8px 0;
+      border-bottom: 0.5px solid var(--border);
+      gap: 8px;
+    }
+    .pass-item:last-child { border-bottom: none; padding-bottom: 0; }
+    .pass-name { font-size: 12px; font-weight: 500; }
+    .pass-desc { font-size: 11px; color: var(--text2); margin-top: 2px; }
+    .pass-price {
+      font-size: 12px; font-weight: 500; color: var(--green-text);
+      background: var(--green-bg); padding: 3px 8px; border-radius: 20px;
+      white-space: nowrap;
+    }
+    .pass-badge {
+      font-size: 10px; padding: 2px 7px; border-radius: 20px;
+      background: var(--amber-bg); color: var(--amber-text);
+      font-weight: 500; white-space: nowrap;
+    }
+
+    /* CONNECTIONS TABLE */
+    .table-section { margin-top: 28px; }
+    .table-section h2 { font-size: 16px; font-weight: 500; margin-bottom: 6px; }
+    .table-section p { font-size: 13px; color: var(--text2); margin-bottom: 14px; }
+
+    .block-title {
+      font-size: 13px; font-weight: 500; color: var(--text2);
+      margin: 20px 0 8px;
+      padding-bottom: 6px;
+      border-bottom: 0.5px solid var(--border);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th {
+      text-align: left; font-weight: 500; font-size: 11px;
+      color: var(--text2); padding: 6px 10px;
+      background: var(--bg2);
+      border-bottom: 0.5px solid var(--border);
+      text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    th:first-child { border-radius: 6px 0 0 0; }
+    th:last-child { border-radius: 0 6px 0 0; }
+    td {
+      padding: 8px 10px;
+      border-bottom: 0.5px solid var(--border);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg2); }
+    .tag {
+      display: inline-block; padding: 2px 7px; border-radius: 20px;
+      font-size: 11px; font-weight: 500;
+    }
+    .tag-ic { background: var(--blue-bg); color: var(--blue-text); }
+    .tag-re { background: var(--teal-bg); color: var(--green-text); }
+    .tag-mtn { background: var(--amber-bg); color: var(--amber-text); }
+
+    .tip-box {
+      background: var(--blue-bg);
+      border-left: 3px solid var(--blue);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: var(--blue-text);
+      margin: 16px 0;
+      line-height: 1.6;
+    }
+
+    footer { margin-top: 32px; font-size: 12px; color: var(--text3); text-align: center; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>🌍 Eurotrip — Mapa Interactivo de Transporte</h1>
+    <p>Frankfurt → Interlaken · Fin de marzo / Inicio de abril · Tren + Hostal</p>
+  </header>
+
+  <div class="layout">
+
+    <!-- MAP -->
+    <div class="map-wrap">
+      <div class="filter-bar">
+        <span>País:</span>
+        <button class="filter-btn active" onclick="filterCountry('all',this)">Todos</button>
+        <button class="filter-btn" onclick="filterCountry('DE',this)">🇩🇪 DE</button>
+        <button class="filter-btn" onclick="filterCountry('NL',this)">🇳🇱 NL</button>
+        <button class="filter-btn" onclick="filterCountry('BE',this)">🇧🇪 BE</button>
+        <button class="filter-btn" onclick="filterCountry('LU',this)">🇱🇺 LU</button>
+        <button class="filter-btn" onclick="filterCountry('FR',this)">🇫🇷 FR</button>
+        <button class="filter-btn" onclick="filterCountry('CH',this)">🇨🇭 CH</button>
+        <button class="filter-btn" onclick="filterCountry('LI',this)">🇱🇮 LI</button>
+      </div>
+
+      <svg id="map" viewBox="0 0 560 420">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+        </defs>
+
+        <!-- ROUTES -->
+        <g id="routes">
+          <line class="route-tren" x1="280" y1="110" x2="248" y2="148"/>
+          <line class="route-tren" x1="280" y1="110" x2="174" y2="82"/>
+          <line class="route-tren" x1="280" y1="110" x2="272" y2="178"/>
+          <line class="route-tren" x1="174" y1="82" x2="126" y2="74"/>
+          <line class="route-tren" x1="126" y1="74" x2="112" y2="54"/>
+          <line class="route-tren" x1="126" y1="74" x2="104" y2="88"/>
+          <line class="route-tren" x1="104" y1="88" x2="120" y2="138"/>
+          <line class="route-tren" x1="104" y1="88" x2="52" y2="52"/>
+          <line class="route-tren" x1="52" y1="52" x2="74" y2="68"/>
+          <line class="route-tren" x1="120" y1="138" x2="180" y2="174"/>
+          <line class="route-tren" x1="180" y1="174" x2="176" y2="202"/>
+          <line class="route-tren" x1="176" y1="202" x2="188" y2="238"/>
+          <line class="route-tren" x1="248" y1="148" x2="272" y2="178"/>
+          <line class="route-tren" x1="272" y1="178" x2="214" y2="222"/>
+          <line class="route-tren" x1="214" y1="222" x2="188" y2="238"/>
+          <line class="route-tren" x1="188" y1="238" x2="260" y2="256"/>
+          <line class="route-regional" x1="260" y1="256" x2="264" y2="222"/>
+          <line class="route-regional" x1="260" y1="256" x2="322" y2="224"/>
+          <line class="route-tren" x1="260" y1="256" x2="242" y2="296"/>
+          <line class="route-regional" x1="260" y1="256" x2="318" y2="280"/>
+          <line class="route-tren" x1="242" y1="296" x2="218" y2="334"/>
+          <line class="route-tren" x1="218" y1="334" x2="190" y2="308"/>
+          <line class="route-tren" x1="190" y1="308" x2="188" y2="238"/>
+          <line class="route-regional" x1="214" y1="222" x2="254" y2="234"/>
+          <line class="route-regional" x1="322" y1="224" x2="264" y2="222"/>
+          <line class="route-regional" x1="112" y1="54" x2="104" y2="64"/>
+        </g>
+
+        <!-- CITIES -->
+        <g id="cities">
+          <!-- Frankfurt -->
+          <g class="city-g" data-c="DE" onclick="showCity('frankfurt')" style="cursor:pointer">
+            <circle class="city-dot" cx="280" cy="110" r="7" fill="#378ADD" stroke="white" stroke-width="2"/>
+            <rect class="city-label-bg" x="286" y="100" width="58" height="13" rx="3"/>
+            <text class="city-label" x="288" y="111">Frankfurt 🇩🇪</text>
+            <text x="280" y="98" text-anchor="middle" style="font-size:9.5px;fill:#378ADD;font-family:inherit;font-weight:600;">INICIO</text>
+          </g>
+          <!-- Aachen -->
+          <g class="city-g" data-c="DE" onclick="showCity('aachen')" style="cursor:pointer">
+            <circle class="city-dot" cx="126" cy="74" r="8" fill="#E24B4A" stroke="white" stroke-width="2"/>
+            <rect class="city-label-bg" x="132" y="64" width="48" height="13" rx="3"/>
+            <text class="city-label" x="134" y="75">Aachen 🇩🇪</text>
+          </g>
+          <!-- Colonia -->
+          <g class="city-g" data-c="DE" onclick="showCity('colonia')" style="cursor:pointer">
+            <circle class="city-dot" cx="174" cy="82" r="6" fill="#378ADD" stroke="white" stroke-width="2"/>
+            <rect class="city-label-bg" x="180" y="72" width="48" height="13" rx="3"/>
+            <text class="city-label" x="182" y="83">Colonia 🇩🇪</text>
+          </g>
+          <!-- Heidelberg -->
+          <g class="city-g" data-c="DE" onclick="showCity('heidelberg')" style="cursor:pointer">
+            <circle class="city-dot" cx="248" cy="148" r="5" fill="#378ADD" stroke="white" stroke-width="2"/>
+            <rect class="city-label-bg" x="254" y="138" width="58" height="13" rx="3"/>
+            <text class="city-label" x="256" y="149">Heidelberg 🇩🇪</text>
+          </g>
+          <!-- Stuttgart -->
+          <g class="city-g" data-c="DE" onclick="showCity('stuttgart')" style="cursor:pointer">
+            <circle class="city-dot" cx="272" cy="178" r="5" fill="#378ADD" stroke="white" stroke-width="2"/>
+            <rect class="city-label-bg" x="278" y="168" width="52" height="13" rx="3"/>
+            <text class="city-label" x="280" y="179">Stuttgart 🇩🇪</text>
+          </g>
+          <!-- Friburgo -->
+          <g class="city-g" data-c="DE" onclick="showCity('friburgo')" style="cursor:pointer">
+            <circle class="city-dot" cx="214" cy="222" r="5" fill="#378ADD" stroke="white" stroke-width="2"/>
+            <rect class="city-label-bg" x="220" y="212" width="48" height="13" rx="3"/>
+            <text class="city-label" x="222" y="223">Friburgo 🇩🇪</text>
+          </g>
+          <!-- Selva Negra -->
+          <g class="city-g" data-c="DE" onclick="showCity('selvanegra')" style="cursor:pointer">
+            <circle class="city-dot" cx="254" cy="234" r="5" fill="#639922" stroke="white" stroke-width="2"/>
+            <rect class="city-label-bg" x="218" y="238" width="60" height="13" rx="3"/>
+            <text class="city-label" x="220" y="249">Selva Negra 🇩🇪</text>
+          </g>
+          <!-- Constanza -->
+          <g class="city-g" data-c="DE" onclick="showCity('constanza')" style="cursor:pointer">
+            <circle class="city-dot" cx="322" cy="224" r="5" fill="#378ADD" stroke="white" stroke-width="2"/>
+            <rect class="city-label-bg" x="328" y="214" width="56" height="13" rx="3"/>
+            <text class="city-label" x="330" y="225">Constanza 🇩🇪</text>
+          </g>
+          <!-- Schaffhausen -->
+          <g class="city-g" data-c="DE" onclick="showCity('schaffhausen')" style="cursor:pointer">
+            <circle class="city-dot" cx="264" cy="222" r="5" fill="#1D9E75" stroke="white" stroke-width="2"/>
+            <rect class="city-label-bg" x="250" y="208" width="70" height="13" rx="3"/>
+            <text class="city-label" x="252" y="219">Schaffhausen 🇨🇭</text>
+          </g>
+          <!-- Maastricht -->
+          <g class="city-g" data-c="NL" onclick="showCity('maastricht')" style="cursor:pointer">
+            <circle class="city-dot" cx="112" cy="54" r="6" fill="#BA7517" stroke="white" stroke-width="2"/>
+            <rect class="city-label-bg" x="118" y="44" width="60" height="13" rx="3"/>
+            <text class="city-label" x="120" y="55">Maastricht 🇳🇱</text>
+          </g>
+          <!-- Valkenburg -->
+          <g class="city-g" data-c="NL" onclick="showCity('valkenburg')" style="cursor:pointer">
+            <circle class="city-dot" cx="104" cy="64" r="4" fill="#BA7517" stroke="white" stroke-width="1.5"/>
+            <rect class="city-label-bg" x="74" y="67" width="54" height="13" rx="3"/>
+            <text class="city-label" x="76" y="78">Valkenburg 🇳🇱</text>
+          </g>
+          <!-- Lieja -->
+          <g class="city-g" data-c="BE" onclick="showCity('lieja')" style="cursor:pointer">
+            <circle class="city-dot" cx="104" cy="88" r="5" fill="#D85A30" stroke="white" stroke-width="2"/>
+            <rect class="city-label-bg" x="68" y="82" width="34" height="13" rx="3"/>
+            <text class="city-label" x="70" y="93">Lieja 🇧🇪</text>
+          </g>
+          <!-- Brujas -->
+          <g class="city-g" data-c="BE" onclick="showCity('brujas')" style="cursor:pointer">
+            <circle class="city-dot" cx="52" cy="52" r="6" fill="#D85A30" stroke="white" stroke-width="2"/>
+            <rect class="city-label-bg" x="58" y="42" width="40" height="13" rx="3"/>
+            <text class="city-label" x="60" y="53">Brujas 🇧🇪</text>
+          </g>
+          <!-- Gante -->
+          <g class="city-g" data-c="BE" onclick="showCity('gante')" style="cursor:pointer">
+            <circle class="city-dot" cx="74" cy="68" r="5" fill="#D85A30" stroke="white" stroke-width="2"/>
+            <rect class="city-label-bg" x="46" y="71" width="40" height="13" rx="3"/>
+            <text class="city-label" x="48" y="82">Gante 🇧🇪</text>
+          </g>
+          <!-- Luxemburgo -->
+          <g class="city-g" data-c="LU" onclick="showCity('luxemburgo')" style="cursor:pointer">
+            <circle class="city-dot" cx="120" cy="138" r="5" fill="#7F77DD" stroke="white" stroke-width="2"/>
+            <rect class="city-label-bg" x="126" y="128" width="64" height="13" rx="3"/>
+            <text class="city-label" x="128" y="139">Luxemburgo 🇱🇺</text>
+          </g>
+          <!-- Estrasburgo -->
+          <g class="city-g" data-c="FR" onclick="showCity('estrasburgo')" style="cursor:pointer">
+            <circle class="city-dot" cx="180" cy="174" r="6" fill="#534AB7" stroke="white" stroke-width="2"/>
+            <rect class="city-label-bg" x="186" y="164" width="64" height="13" rx="3"/>
+            <text class="city-label" x="188" y="175">Estrasburgo 🇫🇷</text>
+          </g>
+          <!-- Colmar -->
+          <g class="city-g" data-c="FR" onclick="showCity('colmar')" style="cursor:pointer">
+            <circle class="city-dot" cx="176" cy="202" r="5" fill="#534AB7" stroke="white" stroke-width="2"/>
+            <rect class="city-label-bg" x="182" y="192" width="42" height="13" rx="3"/>
+            <text class="city-label" x="184" y="203">Colmar 🇫🇷</text>
+          </g>
+          <!-- Basilea -->
+          <g class="city-g" data-c="CH" onclick="showCity('basilea')" style="cursor:pointer">
+            <circle class="city-dot" cx="188" cy="238" r="6" fill="#0F6E56" stroke="white" stroke-width="2"/>
+            <rect class="city-label-bg" x="194" y="228" width="46" height="13" rx="3"/>
+            <text class="city-label" x="196" y="239">Basilea 🇨🇭</text>
+          </g>
+          <!-- Zurich -->
+          <g class="city-g" data-c="CH" onclick="showCity('zurich')" style="cursor:pointer">
+            <circle class="city-dot" cx="260" cy="256" r="8" fill="#0F6E56" stroke="white" stroke-width="2"/>
+            <rect class="city-label-bg" x="266" y="246" width="44" height="13" rx="3"/>
+            <text class="city-label" x="268" y="257">Zurich 🇨🇭</text>
+          </g>
+          <!-- Lucerna -->
+          <g class="city-g" data-c="CH" onclick="showCity('lucerna')" style="cursor:pointer">
+            <circle class="city-dot" cx="242" cy="296" r="7" fill="#0F6E56" stroke="white" stroke-width="2"/>
+            <rect class="city-label-bg" x="248" y="286" width="50" height="13" rx="3"/>
+            <text class="city-label" x="250" y="297">Lucerna 🇨🇭</text>
+          </g>
+          <!-- Berna -->
+          <g class="city-g" data-c="CH" onclick="showCity('berna')" style="cursor:pointer">
+            <circle class="city-dot" cx="190" cy="308" r="6" fill="#0F6E56" stroke="white" stroke-width="2"/>
+            <rect class="city-label-bg" x="196" y="298" width="40" height="13" rx="3"/>
+            <text class="city-label" x="198" y="309">Berna 🇨🇭</text>
+          </g>
+          <!-- Interlaken -->
+          <g class="city-g" data-c="CH" onclick="showCity('interlaken')" style="cursor:pointer">
+            <circle class="city-dot" cx="218" cy="334" r="9" fill="#E24B4A" stroke="white" stroke-width="2.5"/>
+            <rect class="city-label-bg" x="226" y="324" width="58" height="14" rx="3"/>
+            <text class="city-label" x="228" y="335" style="font-weight:600;">Interlaken 🇨🇭</text>
+            <text x="218" y="352" text-anchor="middle" style="font-size:9.5px;fill:#E24B4A;font-family:inherit;font-weight:600;">FIN</text>
+          </g>
+          <!-- Vaduz -->
+          <g class="city-g" data-c="LI" onclick="showCity('vaduz')" style="cursor:pointer">
+            <circle class="city-dot" cx="318" cy="280" r="5" fill="#BA7517" stroke="white" stroke-width="2"/>
+            <rect class="city-label-bg" x="324" y="270" width="48" height="13" rx="3"/>
+            <text class="city-label" x="326" y="281">Vaduz 🇱🇮</text>
+          </g>
+        </g>
+      </svg>
+
+      <div class="legend">
+        <div class="legend-item"><div class="legend-line solid"></div> Tren IC/ICE</div>
+        <div class="legend-item"><div class="legend-line dashed"></div> Tren regional</div>
+        <div class="legend-item"><div class="legend-dot"></div> Ciudad clave</div>
+      </div>
+    </div>
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="info-card" id="info-panel">
+        <p class="placeholder">Haz clic en cualquier ciudad del mapa para ver sus conexiones, tiempos y precios.</p>
+      </div>
+
+      <div class="passes-card">
+        <h3>🎫 Pases recomendados</h3>
+        <div class="pass-item">
+          <div>
+            <div class="pass-name">Interrail Global — 7 días/1 mes</div>
+            <div class="pass-desc">33 países · La mejor opción para este viaje</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+            <span class="pass-price">~€285</span>
+            <span class="pass-badge">⭐ Recomendado</span>
+          </div>
+        </div>
+        <div class="pass-item">
+          <div>
+            <div class="pass-name">Swiss Travel Pass — 4 días</div>
+            <div class="pass-desc">Solo Suiza · Trenes, buses y barcos</div>
+          </div>
+          <span class="pass-price">~CHF 210</span>
+        </div>
+        <div class="pass-item">
+          <div>
+            <div class="pass-name">Eurail Global Pass</div>
+            <div class="pass-desc">Para ciudadanos fuera de Europa</div>
+          </div>
+          <span class="pass-price">~€320</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONNECTIONS TABLE -->
+  <div class="table-section">
+    <h2>🚂 Tabla completa de conexiones</h2>
+    <p>Tiempos, precios y tipo de tren para cada tramo del viaje.</p>
+
+    <div class="tip-box">
+      💡 Con el <strong>Interrail Global Pass</strong>, el costo total estimado de transporte es similar (~€285) al de comprar cada billete por separado (~€290–330), pero con <strong>libertad total de cambiar planes</strong>. En Alemania los trenes ICE requieren reserva adicional (~€4–6). En Suiza, los trenes de montaña (Jungfraujoch, Pilatus, Rigi) tienen suplemento siempre.
+    </div>
+
+    <div class="block-title">Bloque 1 — Base Aachen y excursiones (Días 1–3)</div>
+    <table>
+      <thead><tr><th>Origen</th><th>Destino</th><th>Tiempo</th><th>Precio</th><th>Tipo</th><th>Frecuencia</th></tr></thead>
+      <tbody>
+        <tr><td>Aachen</td><td>Maastricht</td><td>30 min</td><td>~€8</td><td><span class="tag tag-re">RE</span></td><td>Cada hora</td></tr>
+        <tr><td>Aachen</td><td>Valkenburg</td><td>40 min</td><td>~€9</td><td><span class="tag tag-re">RE</span></td><td>Cada hora</td></tr>
+        <tr><td>Aachen</td><td>Colonia</td><td>45 min</td><td>~€12</td><td><span class="tag tag-re">RE/IC</span></td><td>Cada 30 min</td></tr>
+        <tr><td>Aachen</td><td>Lieja</td><td>45 min</td><td>~€10</td><td><span class="tag tag-ic">IC</span></td><td>Cada hora</td></tr>
+      </tbody>
+    </table>
+
+    <div class="block-title">Bloque 2 — Hacia el sur: Bélgica, Luxemburgo, Alsacia (Días 4–6)</div>
+    <table>
+      <thead><tr><th>Origen</th><th>Destino</th><th>Tiempo</th><th>Precio</th><th>Tipo</th><th>Frecuencia</th></tr></thead>
+      <tbody>
+        <tr><td>Aachen</td><td>Brujas (vía Lieja)</td><td>2h 30min</td><td>~€35</td><td><span class="tag tag-ic">IC</span></td><td>Cada hora</td></tr>
+        <tr><td>Brujas</td><td>Gante</td><td>30 min</td><td>~€9</td><td><span class="tag tag-ic">IC</span></td><td>Cada 30 min</td></tr>
+        <tr><td>Lieja</td><td>Luxemburgo</td><td>2h</td><td>~€28</td><td><span class="tag tag-ic">IC</span></td><td>Cada hora</td></tr>
+        <tr><td>Luxemburgo</td><td>Estrasburgo</td><td>2h 10min</td><td>~€30</td><td><span class="tag tag-ic">IC/TGV</span></td><td>4–5 diarios</td></tr>
+        <tr><td>Estrasburgo</td><td>Colmar</td><td>30 min</td><td>~€8</td><td><span class="tag tag-re">RE</span></td><td>Cada hora</td></tr>
+        <tr><td>Colmar</td><td>Basilea</td><td>35 min</td><td>~€10</td><td><span class="tag tag-re">RE</span></td><td>Cada hora</td></tr>
+        <tr><td>Aachen</td><td>Colmar (directo)</td><td>~3h</td><td>~€55</td><td><span class="tag tag-ic">IC+RE</span></td><td>Con cambio en Estr.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="block-title">Bloque 3 — Selva Negra y transición a Suiza (Día 6)</div>
+    <table>
+      <thead><tr><th>Origen</th><th>Destino</th><th>Tiempo</th><th>Precio</th><th>Tipo</th><th>Frecuencia</th></tr></thead>
+      <tbody>
+        <tr><td>Friburgo</td><td>Triberg (Selva Negra)</td><td>50 min</td><td>~€12</td><td><span class="tag tag-re">RE</span></td><td>Cada hora</td></tr>
+        <tr><td>Friburgo</td><td>Lago Titisee</td><td>45 min</td><td>~€11</td><td><span class="tag tag-re">RE</span></td><td>Cada hora</td></tr>
+        <tr><td>Friburgo</td><td>Basilea</td><td>40 min</td><td>~€14</td><td><span class="tag tag-re">RE/IC</span></td><td>Cada 30 min</td></tr>
+      </tbody>
+    </table>
+
+    <div class="block-title">Bloque 4 — Suiza (Días 7–10)</div>
+    <table>
+      <thead><tr><th>Origen</th><th>Destino</th><th>Tiempo</th><th>Precio (CHF)</th><th>Tipo</th><th>Frecuencia</th></tr></thead>
+      <tbody>
+        <tr><td>Basilea</td><td>Zurich</td><td>55 min</td><td>~26</td><td><span class="tag tag-ic">IC</span></td><td>Cada 30 min</td></tr>
+        <tr><td>Zurich</td><td>Schaffhausen</td><td>45 min</td><td>~14</td><td><span class="tag tag-re">S-Bahn</span></td><td>Cada hora</td></tr>
+        <tr><td>Zurich</td><td>Vaduz (bus final)</td><td>1h 10min</td><td>~30</td><td><span class="tag tag-ic">IC+Bus</span></td><td>2–3 diarios</td></tr>
+        <tr><td>Zurich</td><td>Lucerna</td><td>45 min</td><td>~24</td><td><span class="tag tag-ic">IC</span></td><td>Cada 30 min</td></tr>
+        <tr><td>Lucerna</td><td>Interlaken Ost</td><td>1h 50min</td><td>~38</td><td><span class="tag tag-re">RE</span></td><td>Cada hora</td></tr>
+        <tr><td>Interlaken</td><td>Berna</td><td>50 min</td><td>~22</td><td><span class="tag tag-ic">IC</span></td><td>Cada hora</td></tr>
+        <tr><td>Interlaken</td><td>Jungfraujoch</td><td>2h</td><td>~145–175</td><td><span class="tag tag-mtn">Cremallera</span></td><td>Cada hora</td></tr>
+        <tr><td>Lucerna</td><td>Monte Pilatus</td><td>1h total</td><td>~80</td><td><span class="tag tag-mtn">Teleférico</span></td><td>Diario</td></tr>
+        <tr><td>Lucerna</td><td>Monte Rigi</td><td>1h total</td><td>~65</td><td><span class="tag tag-mtn">Barco+cremallera</span></td><td>Diario</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer>
+    Precios estimados para marzo–abril 2026 · 1 CHF ≈ 1.05 € · Generado con Claude para el Eurotrip
+  </footer>
+
+</div>
+
+<script>
+const cities = {
+  frankfurt: { name:"Frankfurt 🇩🇪", desc:"Punto de llegada. Hub ferroviario central de Alemania.", conns:[{d:"Heidelberg",t:"55 min",p:"~€18",tr:"RE/IC"},{d:"Colonia",t:"1h 15min",p:"~€25",tr:"ICE"},{d:"Stuttgart",t:"1h 10min",p:"~€22",tr:"ICE"}]},
+  aachen: { name:"Aachen 🇩🇪", desc:"Base los primeros 3 días. Hub perfecto hacia NL y BE.", conns:[{d:"Colonia",t:"45 min",p:"~€12",tr:"RE/IC"},{d:"Maastricht",t:"30 min",p:"~€8",tr:"RE"},{d:"Lieja",t:"45 min",p:"~€10",tr:"IC"}]},
+  colonia: { name:"Colonia 🇩🇪", desc:"Nodo entre Aachen y Frankfurt. Catedral gótica impresionante.", conns:[{d:"Aachen",t:"45 min",p:"~€12",tr:"RE/IC"},{d:"Frankfurt",t:"1h 15min",p:"~€25",tr:"ICE"}]},
+  heidelberg: { name:"Heidelberg 🇩🇪", desc:"Ciudad romántica sobre el río Neckar.", conns:[{d:"Frankfurt",t:"55 min",p:"~€18",tr:"RE/IC"},{d:"Stuttgart",t:"40 min",p:"~€15",tr:"RE"}]},
+  stuttgart: { name:"Stuttgart 🇩🇪", desc:"Ciudad de Mercedes y Porsche con viñedos urbanos únicos.", conns:[{d:"Frankfurt",t:"1h 10min",p:"~€22",tr:"ICE"},{d:"Heidelberg",t:"40 min",p:"~€15",tr:"RE"},{d:"Friburgo",t:"1h 40min",p:"~€28",tr:"ICE/IC"}]},
+  friburgo: { name:"Friburgo de Brisgovia 🇩🇪", desc:"Puerta de la Selva Negra. Nodo clave hacia Suiza y Alsacia.", conns:[{d:"Stuttgart",t:"1h 40min",p:"~€28",tr:"ICE/IC"},{d:"Basilea",t:"40 min",p:"~€14",tr:"RE/IC"},{d:"Estrasburgo",t:"45 min",p:"~€12",tr:"RE"},{d:"Selva Negra (Triberg)",t:"50 min",p:"~€12",tr:"RE"}]},
+  selvanegra: { name:"Selva Negra 🇩🇪", desc:"Excursión desde Friburgo. Triberg es el pueblo base.", conns:[{d:"Friburgo",t:"50 min",p:"~€12",tr:"RE"},{d:"Constanza",t:"1h 30min",p:"~€18",tr:"RE"}]},
+  constanza: { name:"Constanza 🇩🇪", desc:"Orilla alemana del lago Constanza. Frontera con Suiza.", conns:[{d:"Zurich",t:"1h 10min",p:"~€22 / CHF 26",tr:"IC"},{d:"Schaffhausen",t:"30 min",p:"~€8",tr:"RE"}]},
+  schaffhausen: { name:"Schaffhausen 🇨🇭", desc:"Cataratas del Rin — máximo caudal en primavera.", conns:[{d:"Zurich",t:"45 min",p:"~CHF 14",tr:"S-Bahn"},{d:"Constanza",t:"30 min",p:"~€8",tr:"RE"}]},
+  maastricht: { name:"Maastricht 🇳🇱", desc:"A 30 min de Aachen. Una de las ciudades más elegantes de Holanda.", conns:[{d:"Aachen",t:"30 min",p:"~€8",tr:"RE"},{d:"Valkenburg",t:"10 min",p:"~€4",tr:"RE"}]},
+  valkenburg: { name:"Valkenburg 🇳🇱", desc:"Castillo en ruinas a 10 min de Maastricht.", conns:[{d:"Maastricht",t:"10 min",p:"~€4",tr:"RE"}]},
+  lieja: { name:"Lieja 🇧🇪", desc:"Ciudad belga auténtica entre Aachen y Bruselas.", conns:[{d:"Aachen",t:"45 min",p:"~€10",tr:"IC"},{d:"Brujas",t:"1h 40min",p:"~€22",tr:"IC"},{d:"Luxemburgo",t:"2h",p:"~€28",tr:"IC"}]},
+  brujas: { name:"Brujas 🇧🇪", desc:"Ciudad medieval mejor conservada de Europa.", conns:[{d:"Gante",t:"30 min",p:"~€9",tr:"IC"},{d:"Lieja",t:"1h 40min",p:"~€22",tr:"IC"}]},
+  gante: { name:"Gante 🇧🇪", desc:"Castillo medieval en el centro, canales y vida universitaria.", conns:[{d:"Brujas",t:"30 min",p:"~€9",tr:"IC"},{d:"Lieja",t:"1h 15min",p:"~€18",tr:"IC"}]},
+  luxemburgo: { name:"Ciudad de Luxemburgo 🇱🇺", desc:"Capital sobre cañones. Patrimonio UNESCO.", conns:[{d:"Lieja",t:"2h",p:"~€28",tr:"IC"},{d:"Estrasburgo",t:"2h 10min",p:"~€30",tr:"IC/TGV"}]},
+  estrasburgo: { name:"Estrasburgo 🇫🇷", desc:"Capital de la UE. Mezcla única francesa y alemana.", conns:[{d:"Luxemburgo",t:"2h 10min",p:"~€30",tr:"IC/TGV"},{d:"Colmar",t:"30 min",p:"~€8",tr:"RE"},{d:"Friburgo",t:"45 min",p:"~€12",tr:"RE"}]},
+  colmar: { name:"Colmar 🇫🇷", desc:"El pueblo más fotogénico de Francia. Inspiración visual de Pixar.", conns:[{d:"Estrasburgo",t:"30 min",p:"~€8",tr:"RE"},{d:"Basilea",t:"35 min",p:"~€10",tr:"RE"}]},
+  basilea: { name:"Basilea 🇨🇭", desc:"Primera ciudad suiza. Cruce de Suiza, Francia y Alemania.", conns:[{d:"Colmar",t:"35 min",p:"~€10",tr:"RE"},{d:"Friburgo",t:"40 min",p:"~€14",tr:"RE/IC"},{d:"Zurich",t:"55 min",p:"~CHF 26",tr:"IC"},{d:"Berna",t:"55 min",p:"~CHF 26",tr:"IC"}]},
+  zurich: { name:"Zurich 🇨🇭", desc:"La ciudad más grande de Suiza. Hub ferroviario principal.", conns:[{d:"Basilea",t:"55 min",p:"~CHF 26",tr:"IC"},{d:"Lucerna",t:"45 min",p:"~CHF 24",tr:"IC"},{d:"Schaffhausen",t:"45 min",p:"~CHF 14",tr:"S-Bahn"},{d:"Vaduz",t:"1h 10min",p:"~CHF 30",tr:"IC+Bus"}]},
+  lucerna: { name:"Lucerna 🇨🇭", desc:"Lagos, Alpes y el puente medieval más icónico de Europa.", conns:[{d:"Zurich",t:"45 min",p:"~CHF 24",tr:"IC"},{d:"Interlaken",t:"1h 50min",p:"~CHF 38",tr:"RE"},{d:"Berna",t:"1h",p:"~CHF 26",tr:"IC"}]},
+  berna: { name:"Berna 🇨🇭", desc:"Capital suiza. 6km de arcadas medievales. Patrimonio UNESCO.", conns:[{d:"Basilea",t:"55 min",p:"~CHF 26",tr:"IC"},{d:"Interlaken",t:"50 min",p:"~CHF 22",tr:"IC"},{d:"Lucerna",t:"1h",p:"~CHF 26",tr:"IC"}]},
+  interlaken: { name:"Interlaken 🇨🇭 — DESTINO FINAL", desc:"Capital mundial de la aventura entre dos lagos con el Jungfrau de fondo.", conns:[{d:"Berna",t:"50 min",p:"~CHF 22",tr:"IC"},{d:"Lucerna",t:"1h 50min",p:"~CHF 38",tr:"RE"},{d:"Jungfraujoch",t:"2h",p:"~CHF 145–175",tr:"Cremallera"}]},
+  vaduz: { name:"Vaduz 🇱🇮", desc:"Capital de Liechtenstein. Castillo real y sello de pasaporte único.", conns:[{d:"Zurich",t:"1h 10min",p:"~CHF 30",tr:"IC+Bus"},{d:"Basilea",t:"1h 30min",p:"~CHF 36",tr:"IC+Bus"}]}
+};
+
+function showCity(id) {
+  const c = cities[id];
+  if (!c) return;
+  let html = `<div class="info-city-name">${c.name}</div>
+  <div class="info-city-desc">${c.desc}</div>
+  <div class="conn-list">`;
+  c.conns.forEach(cn => {
+    html += `<div class="conn-item">
+      <div class="conn-dest">${cn.d}</div>
+      <div class="conn-meta">
+        <span>⏱ ${cn.t}</span>
+        <span>${cn.tr}</span>
+        <span class="conn-price">${cn.p}</span>
+      </div>
+    </div>`;
+  });
+  html += `</div>`;
+  document.getElementById('info-panel').innerHTML = html;
+}
+
+function filterCountry(c, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.city-g').forEach(g => {
+    g.style.opacity = (c === 'all' || g.dataset.c === c) ? '1' : '0.15';
+  });
+}
+</script>
+</body>
+</html>
